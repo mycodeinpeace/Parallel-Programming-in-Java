@@ -1,5 +1,9 @@
 package edu.coursera.parallel;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.RecursiveAction;
 
 /**
@@ -84,22 +88,25 @@ public final class ReciprocalArraySum {
      * created to perform reciprocal array sum in parallel.
      */
     private static class ReciprocalArraySumTask extends RecursiveAction {
+    	
+    	// Davut: In the video we have SEQUENTIAL_TRESHOLD variable, which is used when the number of elements in the array is below this treshold, compute sequential.
+    	static int SEQUENTIAL_TRESHOLD = 10000;
         /**
          * Starting index for traversal done by this task.
          */
-        private final int startIndexInclusive;
+        private final int startIndexInclusive; // lo from the video ReciprocalArraySum using RecursiveAction's in Java's Fork/Join Framework (Demo)
         /**
          * Ending index for traversal done by this task.
          */
-        private final int endIndexExclusive;
+        private final int endIndexExclusive; // hi from ReciprocalArraySum using RecursiveAction's in Java's Fork/Join Framework (Demo)
         /**
          * Input array to reciprocal sum.
          */
-        private final double[] input;
+        private final double[] input; // arr from ReciprocalArraySum using RecursiveAction's in Java's Fork/Join Framework (Demo)
         /**
          * Intermediate value produced by this task.
          */
-        private double value;
+        private double value; // ans from ReciprocalArraySum using RecursiveAction's in Java's Fork/Join Framework (Demo)
 
         /**
          * Constructor.
@@ -126,6 +133,21 @@ public final class ReciprocalArraySum {
         @Override
         protected void compute() {
             // TODO
+        	// Davut:
+        	// Davut: In the video we have SEQUENTIAL_TRESHOLD variable, which is used when the number of elements in the array is below this treshold, compute sequential.
+        	if (endIndexExclusive - startIndexInclusive <= SEQUENTIAL_TRESHOLD) {
+        		for (int i = startIndexInclusive; i < endIndexExclusive; i++) {
+        			value += 1/input[i];
+        		}
+        	}
+        	else {
+	        		ReciprocalArraySumTask left = new ReciprocalArraySumTask(startIndexInclusive, (startIndexInclusive + endIndexExclusive) / 2, input);
+	        		ReciprocalArraySumTask right = new ReciprocalArraySumTask((startIndexInclusive + endIndexExclusive) / 2, endIndexExclusive, input);
+	        		left.fork(); // async
+	        		right.compute(); // While left part is running, we are running right part.
+	        		left.join(); // finish
+	        		value = left.value + right.value;
+        	}
         }
     }
 
@@ -140,15 +162,12 @@ public final class ReciprocalArraySum {
      */
     protected static double parArraySum(final double[] input) {
         assert input.length % 2 == 0;
-
-        double sum = 0;
-
-        // Compute sum of reciprocals of array elements
-        for (int i = 0; i < input.length; i++) {
-            sum += 1 / input[i];
-        }
-
-        return sum;
+        
+        // Davut
+        ReciprocalArraySumTask sumTask = new ReciprocalArraySumTask(0, input.length, input);
+        //pool.invoke(sumTask);
+        sumTask.compute();
+        return sumTask.value;
     }
 
     /**
@@ -163,13 +182,25 @@ public final class ReciprocalArraySum {
      */
     protected static double parManyTaskArraySum(final double[] input,
             final int numTasks) {
-        double sum = 0;
-
-        // Compute sum of reciprocals of array elements
-        for (int i = 0; i < input.length; i++) {
-            sum += 1 / input[i];
-        }
-
-        return sum;
+    	
+    	// Davut
+    	System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism", String.valueOf(numTasks));
+    	
+    	ReciprocalArraySumTask sumTask = new ReciprocalArraySumTask(0, input.length, input);
+        sumTask.compute();
+        return sumTask.value;
+    	
+    	 /*double sum = 0;
+         ArrayList<ReciprocalArraySumTask> reciprocalArraySumTaskList = new ArrayList<>();
+         for(int i=0;i<numTasks;i++){
+             int start = getChunkStartInclusive(i,numTasks,input.length);
+             int end = getChunkEndExclusive(i,numTasks,input.length);
+             reciprocalArraySumTaskList.add(new ReciprocalArraySumTask(start,end,input));
+         }
+         ForkJoinTask.invokeAll(reciprocalArraySumTaskList);
+         for(ReciprocalArraySumTask rast : reciprocalArraySumTaskList){
+             sum += rast.getValue();
+         }
+         return sum;*/
     }
 }
